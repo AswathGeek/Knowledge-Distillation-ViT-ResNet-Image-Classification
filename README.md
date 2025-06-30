@@ -1,8 +1,4 @@
-Knowledge Distillation for Image Classification (ViT Teacher, ResNet Student)
-
-![Python](https://img.shields.io/badge/Python-3.x-blue.svg)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.x-red.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
+Enhanced Knowledge Distillation for Image Classification (Hypergraph-ViT Teacher, ResNet Student)
 
 Table of Contents
 - [Introduction](#introduction)
@@ -15,31 +11,72 @@ Table of Contents
 - [Model Architectures](#model-architectures)
 - [Knowledge Distillation Loss](#knowledge-distillation-loss)
 
-
 Introduction
 
-This repository presents an implementation of Knowledge Distillation for image classification. The goal is to transfer the knowledge from a large, powerful Vision Transformer (ViT) teacher model to a smaller, more efficient ResNet50 student model. This technique aims to achieve comparable performance with the student model while significantly reducing its computational footprint and inference time.
+This repository presents an implementation of Knowledge Distillation for image classification, featuring an innovative Hypergraph-Enhanced Vision Transformer (ViT) as the teacher model. The goal is to transfer the enriched knowledge from this advanced teacher to a smaller, more efficient ResNet50 student model. This approach aims to leverage the representational power of hypergraphs to improve the teacher's understanding of complex relationships within image patches, thereby enabling the student model to achieve superior performance with a reduced computational footprint.
 
-This project was developed as a final year project focusing on advanced deep learning techniques for practical applications in computer vision.
+This project was developed as a final year project focusing on advanced deep learning techniques and novel architectural enhancements for practical applications in computer vision.
 
- Project Overview
+Project Overview
 
 The core of this project involves:
-1.  Loading pre-trained Vision Transformer (DeiT Small) as the teacher model.
-2.  Loading a pre-trained ResNet50 as the student model.
-3.  Adapting both models for a 2-class image classification task (classes 'B' and 'M' based on the dataset used).
-4.  Implementing a custom Knowledge Distillation loss function that combines the Kullback-Leibler (KL) divergence between teacher and student logits with the standard Cross-Entropy loss.
-5.  Training the student model using the distilled knowledge from the teacher, along with traditional supervision.
 
- Features
+ * Loading pre-trained Vision Transformer (DeiT Small) as the teacher model.
 
-* Knowledge Distillation: Effective transfer of knowledge from a large teacher model to a compact student model.
-* Pre-trained Models: Utilizes pre-trained `deit_small_distilled_patch16_224` (ViT) as teacher and `ResNet50` as student.
-* Data Augmentation: Includes `RandomHorizontalFlip`, `RandomRotation`, and `ColorJitter` for robust model training.
-* Custom Loss Function:Implements a combined KD and Cross-Entropy loss for optimized training.
-* Learning Rate Scheduling: Uses `StepLR` to adjust the learning rate during training for better convergence.
-* Performance Visualization: Plots training and validation loss and accuracy curves to monitor model performance.
-* GPU Acceleration: Configured to utilize CUDA if available for faster training.
+ * Augmenting the Vision Transformer teacher with a custom HypergraphConv layer to process image patch tokens.
+
+ * Fusing the hypergraph-enhanced features with the ViT's classification token for a more informative teacher signal.
+
+ * Using a pre-trained ResNet50 as the student model.
+
+ * Adapting both models for a 2-class image classification task (classes 'B' and 'M').
+
+ * Implementing a custom Knowledge Distillation loss function that combines the Kullback-Leibler (KL) divergence between teacher and student logits with the standard Cross-Entropy loss.
+
+ * Training the student model using the distilled knowledge from the teacher, along with traditional supervision.
+
+Features
+
+ * Hypergraph-Enhanced Teacher: Integration of custom HypergraphConv layer into the Vision Transformer teacher model for richer feature representation.
+ * Knowledge Distillation: Effective transfer of knowledge from a powerful, enhanced teacher model to a compact student model.
+ * Pre-trained Models: Utilizes pre-trained deit_small_distilled_patch16_224 (ViT) as the base for the teacher and ResNet50 as the student.
+ * Data Augmentation: Includes RandomHorizontalFlip, RandomRotation, and ColorJitter for robust model training.
+ * Custom Loss Function: Implements a combined KD and Cross-Entropy loss for optimized training.
+ * Learning Rate Scheduling: Uses StepLR to adjust the learning rate during training for better convergence.
+ * Performance Visualization: Plots training and validation loss and accuracy curves, and generates a confusion matrix and classification report.
+ * GPU Acceleration: Configured to utilize CUDA if available for faster training.
+
+Hypergraph Integration
+
+ * The project incorporates Hypergraph Convolution to enhance the Vision Transformer's ability to capture complex, non-pairwise relationships within the input image patches.
+
+HypergraphConv Layer
+ 
+ This is a custom PyTorch module that implements hypergraph convolution. It operates on the patch tokens generated by the ViT:
+
+   * It computes a similarity matrix S between normalized patch tokens.
+
+   * An incidence matrix H is constructed by thresholding this similarity matrix, effectively defining hyperedges based on strong correlations between patches.
+
+   * Node and hyperedge degree matrices (Dv, De) are calculated to normalize the message passing.
+
+   * The layer then performs an aggregation process akin to graph convolution, but extended to hypergraphs, allowing information to flow through groups of related patches (hyperedges).
+
+   * Finally, a linear transformation and ReLU activation are applied.
+
+Integration into TModel (Teacher)
+
+ The HypergraphConv layer is integrated directly into the TModel architecture:
+
+   1. Patch Token Extraction: The Vision Transformer's patch_embed and transformer blocks process the input image to extract rich patch tokens.
+
+   2. Hypergraph Processing: These patch tokens are then fed into the HypergraphConv layer, which generates hyper_features representing the hypergraph-aware information.
+
+   3. Feature Fusion: The average of these hyper_features is concatenated with the Vision Transformer's learned cls_token (classification token).
+
+   4. Final Prediction: This combined, fused feature vector is passed through a fusion layer and then a classifier to produce the teacher's enhanced logits.
+
+This design allows the teacher model to leverage both the global context learned by the ViT and the local, higher-order relationships captured by the hypergraph, providing a more comprehensive and robust source of knowledge for distillation.
 
 Dataset
 
@@ -94,14 +131,14 @@ After 20 epochs of training, the student model achieved the following performanc
 Model Architectures
 
 Teacher Model: Vision Transformer (ViT)
-* Model: `deit_small_distilled_patch16_224`
-* Framework: `timm`
+* Base Model: deit_small_distilled_patch16_224 (ViT) from timm
+* Enhancement: Integrates a HypergraphConv layer after the ViT's transformer blocks to process patch tokens.
+* Fusion: Fuses the hypergraph-enhanced features with the ViT's classification token.
 * Key Modification: Output head adapted for 2 classification classes.
 
 Student Model: ResNet50
-* Model:`resnet50`
-* Framework:`torchvision.models`
-* Key Modification: Fully connected layer replaced with a `nn.Sequential` block including Dropout and a Linear layer for 2 classification classes.
+* Base Model: resnet50 from torchvision.models
+* Key Modification: Fully connected layer replaced with a nn.Sequential block including Dropout (0.5) and a Linear layer for 2 classification classes.
 
 Knowledge Distillation Loss
 
